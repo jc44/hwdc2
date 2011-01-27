@@ -247,6 +247,11 @@ public:
 		*this << in;
 	}
 
+	bool isro() const
+	{
+		return !strval.empty() && strval[0] == '_';
+	}
+
 	bool iseof() const
 	{
 		return thing_type == eof;
@@ -280,8 +285,8 @@ public:
 	const wstring el_name(int offset = 0, int depth = 0) const
 	{
 		return offset > 0 ? (parent.isnull() ? wstring() : parent->el_name(offset - 1, depth)) :
-			parent.isnull() || depth == 1 ? el_string() :
-			parent->el_name(0, depth - 1) + L"_" + el_string();
+			parent.isnull() || depth == 1 ? el_string().substr(isro() ? 1 : 0) :
+			parent->el_name(0, depth - 1) + L"_" + el_string().substr(isro() ? 1 : 0);
 	}
 
 	const wstring el_argname() const
@@ -441,6 +446,7 @@ void thing_sequence::generate_c(wostream& os, thing * parent, const int argno)
 	size_t i = 0;
 	int sb_count = 0;
 	bool seen_default = false;
+	bool all_ro = true;
 	PtrList<thing> bthings;
 
 	while (i < len())
@@ -482,27 +488,21 @@ void thing_sequence::generate_c(wostream& os, thing * parent, const int argno)
 
 			case thing::square_bracket_start:
 			{
-				el.el_sequence().generate_c(os, &name);
+				++sb_count;
+
+				el.el_sequence().generate_c(os, &name, sb_count);
 
 				// We expect section start next
 				thing& el2 = extract(i++);
 				if (el2.el_type() != thing::section_start)
 					throw syntax_error(el2);
 
-				++sb_count;
-
-				os << "#define " << name.el_name() << L"_OF(x) (x)\n";
-				os << L"#define _" << name.el_name(1) << L"_arg" << sb_count <<
-					L"_" << name.el_name(0, 1) << L"_OF(x) (x)\n";
-
-				os << "#define " << name.el_name() << L"_VAL(x) " << el.el_sequence().sb_val() << L"\n";
-				os << L"#define _" << name.el_name(1) << L"_arg" << sb_count <<
-					L"_" << name.el_name(0, 1) << L"_VAL(x) " << el.el_sequence().sb_val() << L"\n";;
-
 				el2.el_sequence().generate_c(os, &name, sb_count);
 				os << L"\n";
 
 				bthings << &name;
+				if (!name.isro())
+					all_ro = false;
 
 				break;
 			}
@@ -530,41 +530,64 @@ void thing_sequence::generate_c(wostream& os, thing * parent, const int argno)
 	{
 		const size_t blen = bthings.len();
 
-		os << L"#define " << parent->el_name() << "_RMK(";
-		for (size_t i = 0; i != blen; ++i)
+		if (!all_ro)
 		{
-			if (i != 0)
-				os << L',';
-			os << bthings[i]->el_argname();
+			bool arg1 = true;
+	
+			os << L"#define " << parent->el_name() << "_RMK(";
+			for (size_t i = 0; i != blen; ++i)
+			{
+				if (!arg1)
+					os << L',';
+				if (!bthings[i]->isro())
+				{
+					arg1 = false;
+					os << bthings[i]->el_argname();
+				}
+			}
+			os << L") (\\\n\t((";
+			for (size_t i = 0; i != blen; ++i)
+			{
+				if (i != 0)
+					os << L" | \\\n\t((";
+				if (bthings[i]->isro())
+					os << bthings[i]->el_name() << "_DEFAULT";
+				else
+					os << bthings[i]->el_argname();
+	
+				os << L") << _" << bthings[i]->el_name() << "_SHIFT)";
+			}
+			os << L")\n";
+	
+			os << L"#define " << parent->el_name() << "_RMKS(";
+			arg1 = true;
+			for (size_t i = 0; i != blen; ++i)
+			{
+				if (!arg1)
+					os << L',';
+				if (!bthings[i]->isro())
+				{
+					arg1 = false;
+					os << bthings[i]->el_argname();
+				}
+			}
+			os << L") (\\\n\t((";
+			for (size_t i = 0; i != blen; ++i)
+			{
+				if (i != 0)
+					os << L" | \\\n\t((";
+	
+				if (bthings[i]->isro())
+					os << bthings[i]->el_name() << "_DEFAULT";
+				else
+					os << parent->el_name() << L"_arg" << (i + 1) << L"_##" <<
+						 bthings[i]->el_argname();
+				os << L") << _" << bthings[i]->el_name() << "_SHIFT)";
+			}
+			os << L")\n";
 		}
-		os << L") \\\n\t((";
-		for (size_t i = 0; i != blen; ++i)
-		{
-			if (i != 0)
-				os << L" | \\\n\t((";
-			os << bthings[i]->el_argname() << L") << _" << bthings[i]->el_name() << "_SHIFT)";
-		}
-		os << L")\n";
 
-		os << L"#define " << parent->el_name() << "_RMKS(";
-		for (size_t i = 0; i != blen; ++i)
-		{
-			if (i != 0)
-				os << L',';
-			os << bthings[i]->el_argname();
-		}
-		os << L") \\\n\t((";
-		for (size_t i = 0; i != blen; ++i)
-		{
-			if (i != 0)
-				os << L" | \\\n\t((";
-
-			os << parent->el_name() << L"_arg" << i << L"_##" <<
-				 bthings[i]->el_argname() << L") << _" << bthings[i]->el_name() << "_SHIFT)";
-		}
-		os << L")\n";
-
-		os << L"#define " << parent->el_name() << L"_DEFAULT (\n\t(";
+		os << L"#define " << parent->el_name() << L"_DEFAULT (\\\n\t(";
 		for (size_t i = 0; i != blen; ++i)
 		{
 			if (i != 0)
@@ -607,11 +630,24 @@ void square_bracket_sequence::generate_c(wostream& os, thing * parent, const int
 	}
 
 	field_shift = vals[0];
-	mask = (1 << vals[1]) - 1;
+	mask = vals[1] == 32 ? 0xffffffff : (1U << vals[1]) - 1;
 	val_shift = vals[2];
 
 	os << L"#define _" << parent->el_name() << L"_SHIFT " << field_shift << L"\n";
 	os << L"#define _" << parent->el_name() << L"_MASK 0x" << itowstring(mask << field_shift, 16) << L"\n";
+
+	if (!parent->isro())
+	{
+		os << "#define " << parent->el_name() << L"_OF(x) (x)\n";
+		os << L"#define _" << parent->el_name(1) << L"_arg" << argno <<
+			L"_" << parent->el_name(0, 1) << L"_OF(x) (x)\n";
+	
+		os << "#define " << parent->el_name() << L"_VAL(x) " << sb_val() << L"\n";
+		os << L"#define _" << parent->el_name(1) << L"_arg" << argno <<
+			L"_" << parent->el_name(0, 1) << L"_VAL(x) " << sb_val() << L"\n";;
+	}
+
+
 }
 
 
