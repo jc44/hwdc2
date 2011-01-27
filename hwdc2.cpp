@@ -289,6 +289,15 @@ public:
 			parent->el_name(0, depth - 1) + L"_" + el_string().substr(isro() ? 1 : 0);
 	}
 
+	void fix_reserved(int argno)
+	{
+		if (strval == L"_")
+		{
+			strval = L"_Reserved";
+			strval += itowstring(argno);
+		}
+	}
+
 	const wstring el_argname() const
 	{
 		const size_t wlen = strval.length();
@@ -441,6 +450,24 @@ thing_sequence::thing_sequence(pp_stream& in, const thing::eType expected_end)
 }
 
 
+void generate_rmk_hdr(wostream& os, const thing &parent, const PtrList<thing> &bthings, const wchar_t * rmk)
+{
+	os << L"#define " << parent.el_name() << rmk;
+	bool arg1 = true;
+	const size_t blen = bthings.len();
+	for (size_t i = 0; i != blen; ++i)
+	{
+		if (!bthings[i]->isro())
+		{
+			if (!arg1)
+				os << L',';
+			arg1 = false;
+			os << bthings[i]->el_argname();
+		}
+	}
+	os << L") (\\\n\t((";
+}
+
 void thing_sequence::generate_c(wostream& os, thing * parent, const int argno)
 {
 	size_t i = 0;
@@ -490,6 +517,8 @@ void thing_sequence::generate_c(wostream& os, thing * parent, const int argno)
 			{
 				++sb_count;
 
+				name.fix_reserved(sb_count);
+
 				el.el_sequence().generate_c(os, &name, sb_count);
 
 				// We expect section start next
@@ -532,57 +561,32 @@ void thing_sequence::generate_c(wostream& os, thing * parent, const int argno)
 
 		if (!all_ro)
 		{
-			bool arg1 = true;
-	
-			os << L"#define " << parent->el_name() << "_RMK(";
-			for (size_t i = 0; i != blen; ++i)
-			{
-				if (!arg1)
-					os << L',';
-				if (!bthings[i]->isro())
-				{
-					arg1 = false;
-					os << bthings[i]->el_argname();
-				}
-			}
-			os << L") (\\\n\t((";
+			generate_rmk_hdr(os, *parent, bthings, L"_RMK(");
 			for (size_t i = 0; i != blen; ++i)
 			{
 				if (i != 0)
 					os << L" | \\\n\t((";
 				if (bthings[i]->isro())
-					os << bthings[i]->el_name() << "_DEFAULT";
+					os << bthings[i]->el_name() << L"_DEFAULT";
 				else
 					os << bthings[i]->el_argname();
 	
-				os << L") << _" << bthings[i]->el_name() << "_SHIFT)";
+				os << L") << _" << bthings[i]->el_name() << L"_SHIFT)";
 			}
 			os << L")\n";
 	
-			os << L"#define " << parent->el_name() << "_RMKS(";
-			arg1 = true;
-			for (size_t i = 0; i != blen; ++i)
-			{
-				if (!arg1)
-					os << L',';
-				if (!bthings[i]->isro())
-				{
-					arg1 = false;
-					os << bthings[i]->el_argname();
-				}
-			}
-			os << L") (\\\n\t((";
+			generate_rmk_hdr(os, *parent, bthings, L"_RMKS(");
 			for (size_t i = 0; i != blen; ++i)
 			{
 				if (i != 0)
 					os << L" | \\\n\t((";
 	
 				if (bthings[i]->isro())
-					os << bthings[i]->el_name() << "_DEFAULT";
+					os << bthings[i]->el_name() << L"_DEFAULT";
 				else
 					os << parent->el_name() << L"_arg" << (i + 1) << L"_##" <<
 						 bthings[i]->el_argname();
-				os << L") << _" << bthings[i]->el_name() << "_SHIFT)";
+				os << L") << _" << bthings[i]->el_name() << L"_SHIFT)";
 			}
 			os << L")\n";
 		}
