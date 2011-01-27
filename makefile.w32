@@ -1,0 +1,7 @@
+CFLAGS=/D_UNICODE /D_CRT_SECURE_NO_WARNINGS /W3 /EHsc /Zi /MDd /c /nologo
+
+.cpp.obj:
+	cl $(CFLAGS) $<
+
+hwdc2.exe: hwdc2.obj
+	link /DEBUG /out:$@ /entry:wmainCRTStartup /incremental:no $** wsetargv.obj
