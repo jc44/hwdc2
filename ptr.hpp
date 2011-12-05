@@ -1,9 +1,12 @@
 #ifndef PTR_HXX
 #define PTR_HXX
 
+#include <stdlib.h>
+
 #define NEXCEPT 1
 
 // Common templates
+namespace std {
 
 //----------------------------------------------------------------------------
 //
@@ -332,7 +335,7 @@ template<class T>
 class PList
 {
 protected:
-	T** array;
+	T** parray;
 	size_t allocated, alen;
 
 	void newalloc ()
@@ -342,8 +345,8 @@ protected:
 			if (allocated == 0)
 			{
 				allocated = 4;
-				array = (T**)malloc (sizeof (T*) * allocated);
-//				if ((array = (T**)malloc (sizeof (T*) * allocated)) == 0)
+				parray = (T**)malloc (sizeof (T*) * allocated);
+//				if ((parray = (T**)malloc (sizeof (T*) * allocated)) == 0)
 //					_standard_new_handler (sizeof (T*) * allocated);
 			}
 			else
@@ -353,7 +356,7 @@ protected:
 				else
 					allocated += 64;
 
-				array = (T**)realloc (array, sizeof (T*) * allocated);
+				parray = (T**)realloc (parray, sizeof (T*) * allocated);
 					/* panic */;
 //					_standard_new_handler (sizeof (T*) * allocated);
 			}
@@ -362,7 +365,7 @@ protected:
 
 public:
 	PList () :
-		array (0),
+		parray (0),
 		allocated (0),
 		alen (0)
 	{
@@ -372,13 +375,13 @@ public:
 	~PList ()
 	{
 		if (allocated != 0)
-			free (array);
+			free (parray);
 	}
 
 	PList& operator << (T * const x)
 	{
 		newalloc ();
-		array [alen++] = x;
+		parray [alen++] = x;
 		return *this;
 	}
 
@@ -388,7 +391,7 @@ public:
 		if (offset >= alen)
 			throw Error ("PList::[] offset >= alen");
 #endif
-		return array [offset];		
+		return parray [offset];		
 	}	
 
 	T* operator [] (int offset) const
@@ -400,7 +403,7 @@ public:
 		if (size_t (offset) >= alen)
 			throw Error ("PList::[] offset >= alen");
 #endif
-		return array [offset];		
+		return parray [offset];		
 	}
 
 	size_t len () const
@@ -415,21 +418,21 @@ public:
 		// *** If we use this a lot it could be MUCH smarter
 
 		for (size_t i = 0; i < alen; ++i)
-			if (array [i] == 0)
+			if (parray [i] == 0)
 			{
-				array [i] = x;
+				parray [i] = x;
 				return i;
 			}
 
 		newalloc ();
-		array [alen] = x;
+		parray [alen] = x;
 		return alen++;
 	}
 
 	int find (const T * const x) const
 	{
 		for (size_t i = 0; i < alen; ++i)
-			if (array [i] == x)
+			if (parray [i] == x)
 				return i;
 		return -1;
 	}
@@ -452,7 +455,7 @@ public:
 		if (offset >= alen)
 			throw Error ("PList::set offset >= alen");
 #endif
-		return array [offset] = x;
+		return parray [offset] = x;
 	}
 
 	void empty (const int offset)
@@ -475,19 +478,19 @@ PList<T>::replace (const size_t offset, T * const x)
 	if (offset >= alen)
 		throw Error ("PList::replace offset >= alen");
 #endif
-	if (array [offset] != 0)
-		delete array [offset];
-	return array [offset] = x;
+	if (parray [offset] != 0)
+		delete parray [offset];
+	return parray [offset] = x;
 }
 
 template<class T>
 void
 PList<T>::deletel (const size_t offset)
 {
-	if (offset < alen && array [offset] != 0)
+	if (offset < alen && parray [offset] != 0)
 	{
-		delete array [offset];
-		array [offset] = 0;
+		delete parray [offset];
+		parray [offset] = 0;
 	}
 }
 
@@ -496,8 +499,8 @@ void
 PList<T>::deleteall ()
 {
 	while (alen != 0)
-		if (array [--alen] != 0)
-			delete array [alen];
+		if (parray [--alen] != 0)
+			delete parray [alen];
 }
 
 
@@ -543,7 +546,7 @@ public:
 
 	PtrList& remove (const size_t i)
 	{
-		T * const p = array [i];
+		T * const p = PList<T>::parray [i];
 		PList<T>::set (i, 0);
 		p->DecReferenceCount ();
 		return *this;
@@ -557,8 +560,8 @@ public:
 
 	void empty ()
 	{
-		while (alen != 0)
-			array [--alen]->DecReferenceCount ();
+		while (PList<T>::alen != 0)
+			PList<T>::parray[--PList<T>::alen]->DecReferenceCount ();
 	}
 
 	~PtrList ()
@@ -567,5 +570,6 @@ public:
 	}
 };
 
+} // namespace
 
 #endif

@@ -1,3 +1,9 @@
+#ifdef _WIN32
+#define IS_UNIX 0
+#else
+#define IS_UNIX 1
+#endif
+
 #include <cctype>
 #include <fstream>
 #include <iostream>
@@ -8,10 +14,24 @@
 using namespace std;
 
 static wstring
-itowstring(const int i, const int radix = 10)
+itowstring(int i, const int radix = 10)
 {
 	wchar_t buf[32];
-	_itow(i, buf, radix);
+	wchar_t * p = buf;
+	if (i < 0)
+	{
+		*p++ = '-';
+		i = -i;
+	}
+
+	do
+	{
+		int n = i % radix;
+		*p++ = n < 10 ? L'0' + n : L'a' - 10 + n;
+		i /= radix;
+	} while (i != 0);
+	*p++ = 0;
+
 	return wstring(buf);
 }
 
@@ -38,6 +58,12 @@ public:
 	}
 };
 
+#if IS_UNIX
+typedef const char * filename_t;
+#else
+typedef const wchar_t * filename_t;
+#endif
+
 class pp_stream
 {
 	bool ungot;
@@ -51,7 +77,7 @@ public:
 		// Empty
 	}
 
-	pp_stream(const wchar_t * const filename) :
+	pp_stream(const filename_t filename) :
 		ungot(false),
 		last_c(-1),
 		line_no(1),
@@ -63,7 +89,7 @@ public:
 
 	int get(const bool quoted = false)
 	{
-		int c;
+		wint_t c;
 
 		if (ungot)
 		{
@@ -78,7 +104,7 @@ public:
 		// Dump comments
 		if (!quoted && c == '/' && stream_in.peek() == '/')
 		{
-			while ((c = stream_in.get()) != WEOF && c != '\n')
+			while ((c = stream_in.get()) != WEOF && c != L'\n')
 				/* loop */;
 		}
 
@@ -169,7 +195,7 @@ public:
 		// well contain newlines
 		line_no = in.line();
 
-		int c = in.get();
+		wint_t c = in.get();
 		if (c == WEOF)
 		{
 			thing_type = eof;
@@ -202,7 +228,7 @@ public:
 				const wchar_t * const cstr = strval.c_str();
 				numval = wcstol(cstr, &endptr, 0);
 				// Its a good number if strtol consumes the entire string
-				if (endptr - cstr == strval.length())
+				if ((size_t)(endptr - cstr) == strval.length())
 				{
 					thing_type = number;
 				}
@@ -661,8 +687,13 @@ void thing::set_sequence(thing_sequence * const seq)
 	section = seq;
 }
 
+#if IS_UNIX
+int
+main(int argc, char *argv[])
+#else
 int
 wmain(int argc, wchar_t *argv[])
+#endif
 {
 	if (argc < 2)
 	{
@@ -678,7 +709,8 @@ wmain(int argc, wchar_t *argv[])
 			things.generate_c(wcout, NULL);
 		else
 		{
-			things.generate_c(wofstream(argv[2]), NULL);
+			wofstream outs(argv[2]);
+			things.generate_c(outs, NULL);
 		}
 	}
 	catch (hwdc_error& err)
@@ -688,3 +720,4 @@ wmain(int argc, wchar_t *argv[])
 
 	return 0;
 }
+
