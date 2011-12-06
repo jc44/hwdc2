@@ -13,26 +13,29 @@
 
 using namespace std;
 
+// Convert int to wstring
+// Treats value as unsigned if radix != 10
 static wstring
-itowstring(int i, const int radix = 10)
+itowstring(int i, const unsigned int radix = 10)
 {
 	wchar_t buf[32];
-	wchar_t * p = buf;
-	if (i < 0)
-	{
-		*p++ = '-';
-		i = -i;
-	}
+	wchar_t * p = buf + 32;
+	const bool is_minus = radix == 10 && (i < 0);
+	unsigned int u = is_minus ? (unsigned int)-i : (unsigned int)i;
+
+	*--p = L'\0';
 
 	do
 	{
-		int n = i % radix;
-		*p++ = n < 10 ? L'0' + n : L'a' - 10 + n;
-		i /= radix;
-	} while (i != 0);
-	*p++ = 0;
+		int n = u % radix;
+		*--p = n < 10 ? L'0' + n : L'a' - 10 + n;
+		u /= radix;
+	} while (u != 0);
 
-	return wstring(buf);
+	if (is_minus)
+		*--p = L'-';
+
+	return wstring(p);
 }
 
 class hwdc_error
@@ -631,7 +634,7 @@ void thing_sequence::generate_c(wostream& os, thing * parent, const int argno)
 	}
 }
 
-void square_bracket_sequence::generate_c(wostream& os, thing * parent, const int argno)
+void square_bracket_sequence::generate_c(wostream& os, thing * const parent, const int argno)
 {
 	size_t i = 0;
 	size_t j = 0;
