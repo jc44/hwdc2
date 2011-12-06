@@ -1,7 +1,24 @@
-CFLAGS=/D_UNICODE /D_CRT_SECURE_NO_WARNINGS /W3 /EHsc /Zi /MDd /c /nologo
+CPPFLAGS=/D_UNICODE /D_CRT_SECURE_NO_WARNINGS /W3 /EHsc /Zi /MDd /c /nologo
+CPPFLAGS=/D_CRT_SECURE_NO_WARNINGS /W3 /Zi /MDd /c /nologo
 
 .cpp.obj:
+	cl $(CPPFLAGS) $<
+
+.c.obj:
 	cl $(CFLAGS) $<
+
+all: hwdc2.exe
+
+test: drv_test.exe
+
+drv_test_hwd.h: drv_test_hwd.hwd hwdc2.exe
+	hwdc2 $*.hwd $@
+
+drv_test.obj: drv_test.c drv_test_hwd.h
 
 hwdc2.exe: hwdc2.obj
 	link /DEBUG /out:$@ /entry:wmainCRTStartup /incremental:no $** wsetargv.obj
+
+drv_test.exe: drv_test.obj
+	link /DEBUG /out:$@ /incremental:no $**
+

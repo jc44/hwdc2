@@ -613,7 +613,7 @@ void thing_sequence::generate_c(wostream& os, thing * parent, const int argno)
 				if (bthings[i]->isro())
 					os << bthings[i]->el_name() << L"_DEFAULT";
 				else
-					os << parent->el_name() << L"_arg" << (i + 1) << L"_##" <<
+					os << L'_' << parent->el_name() << L"_arg" << (i + 1) << L"_##" <<
 						 bthings[i]->el_argname();
 				os << L") << _" << bthings[i]->el_name() << L"_SHIFT)";
 			}

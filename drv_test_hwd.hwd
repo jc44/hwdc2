@@ -1,0 +1,11 @@
+// A test device
+// Doesn't describe anything real!
+
+TEST {
+	REG1 {
+		OFFSET=0
+		HI[16,16] {DEFAULT=1 FULL=0xffff EMPTY=0}
+		LO[0,16] {DEFAULT=2 SOGGY=0x5555 DRY=0}
+	}
+}
+
